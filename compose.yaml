@@ -1,0 +1,16 @@
+name: querypilot
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      GO_JUDGE_URL: http://go-judge:5050
+    depends_on:
+      - go-judge
+
+  go-judge:
+    image: criyle/go-judge:v1.14.0
+    privileged: true
+    shm_size: 256m
+    command: ["-http-addr", ":5050"]
