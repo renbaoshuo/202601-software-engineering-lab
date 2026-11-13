@@ -100,3 +100,23 @@ h2 { font-size: 16px; font-weight: 750; }
   .main { order: 2; padding: 17px 12px 24px; }
   .panel { padding: 12px; }
 }
+body { color: #1b2a3b; background: #f5f7fa; }
+.dataset-select {
+  width: 100%; padding: 8px 10px; margin-top: 6px; border: 1px solid #cbd7e3;
+  border-radius: 7px; background: var(--surface); color: inherit;
+}
+.inspector [role="alert"] .button { margin-top: 8px; }
+.schema-tables { display: grid; gap: 7px; margin-top: 18px; }
+.schema-table { border: 1px solid var(--border); border-radius: 7px; }
+.schema-table summary { cursor: pointer; padding: 8px 9px; font-size: 13px; color: #214d76; }
+.schema-table summary span { float: right; color: var(--muted); font-size: 12px; }
+.schema-table code { font: 600 12px var(--mono); }
+.schema-table ul { list-style: none; padding: 0; margin: 0; }
+.schema-table li {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 4px;
+  flex-wrap: wrap; padding: 5px 9px; border-top: 1px solid #edf1f6;
+}
+.schema-table small { margin-left: 5px; color: #275179; background: var(--accent-tint); padding: 1px 3px; border-radius: 3px; }
+.column-type, .schema-relations { color: var(--muted); font-size: 11px; }
+.schema-relations { border-top: 1px solid var(--border); display: grid; gap: 4px; padding: 7px 9px; }
+.schema-relations code { font-size: 11px; overflow-wrap: anywhere; font-weight: 400; }

@@ -4,6 +4,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
-    proxy: { '/api': 'http://127.0.0.1:8000' },
+    proxy: { '/api': process.env.QUERY_PILOT_API_TARGET ?? 'http://127.0.0.1:8000' },
   },
 });

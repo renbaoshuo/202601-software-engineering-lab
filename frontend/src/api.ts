@@ -27,3 +27,9 @@ export type Cell = string | number | null;
 export type RunResult =
   | { status: 'ok' | 'empty'; columns: string[]; rows: Cell[][]; truncated: boolean; elapsed_ms: number }
   | { status: 'error' | 'timeout'; code: string; message: string; elapsed_ms: number };
+
+export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, init);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json() as Promise<T>;
+}
