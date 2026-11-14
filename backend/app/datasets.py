@@ -3,6 +3,7 @@ from contextlib import closing
 from pathlib import Path
 
 from .contracts import Column, Dataset, DatasetSchema, ForeignKey, Table
+from .sqlite_runner import load_seed
 
 DATASET_VERSION = "1"
 SEEDS = Path(__file__).with_name("seeds")
@@ -38,11 +39,6 @@ DATASETS = {
 def seed_sql(dataset_id: str) -> str:
     dataset = DATASETS[dataset_id]
     return (SEEDS / f"{dataset.id}.sql").read_text(encoding="utf-8")
-
-
-def load_seed(connection: sqlite3.Connection, statements: str) -> None:
-    connection.execute("PRAGMA foreign_keys = ON")
-    connection.executescript(statements)
 
 
 def dataset_schema(dataset_id: str) -> DatasetSchema:

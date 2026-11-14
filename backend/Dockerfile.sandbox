@@ -1,0 +1,5 @@
+FROM criyle/go-judge:v1.14.0 AS judge
+FROM python:3.13-slim
+COPY --from=judge /opt/go-judge /opt/mount.yaml /opt/
+WORKDIR /opt
+ENTRYPOINT ["/opt/go-judge"]
