@@ -140,3 +140,11 @@ body { color: #1b2a3b; background: #f5f7fa; }
 .result-table tbody tr:last-child td { border-bottom: 0; }
 .result-table tbody tr:nth-child(even) { background: #f7f9fc; }
 .null-cell { color: #687e94; }
+.result-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.run-feedback { margin-top: 10px; color: #344b64; font-size: 13px; }
+.run-feedback p { overflow-wrap: anywhere; }
+.status-badge { display: inline-flex; align-items: center; border-radius: 5px; padding: 2px 6px; font-size: 12px; font-weight: 650; }
+.status-badge.is-neutral { color: #495d72; background: #ecf1f6; }
+.status-badge.is-success { color: #1a654b; background: #e5f5ed; }
+.status-badge.is-warning { color: #75521b; background: #fff1cd; }
+.status-badge.is-error { color: #963544; background: #fbe8eb; }

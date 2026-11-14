@@ -29,7 +29,9 @@ export type RunResult =
   | { status: 'error' | 'timeout'; code: string; message: string; elapsed_ms: number };
 
 export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init);
+  const deadline = AbortSignal.timeout(12_000);
+  const signal = init?.signal ? AbortSignal.any([init.signal, deadline]) : deadline;
+  const response = await fetch(path, { ...init, signal });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json() as Promise<T>;
 }
