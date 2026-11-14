@@ -33,3 +33,11 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json() as Promise<T>;
 }
+
+export function runSql(datasetId: string, sql: string) {
+  return requestJson<RunResult>('/api/sql/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dataset_id: datasetId, sql }),
+  });
+}

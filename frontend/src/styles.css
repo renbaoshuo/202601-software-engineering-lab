@@ -120,3 +120,23 @@ body { color: #1b2a3b; background: #f5f7fa; }
 .column-type, .schema-relations { color: var(--muted); font-size: 11px; }
 .schema-relations { border-top: 1px solid var(--border); display: grid; gap: 4px; padding: 7px 9px; }
 .schema-relations code { font-size: 11px; overflow-wrap: anywhere; font-weight: 400; }
+.editor-surface { position: relative; }
+.editor-surface pre, .editor-surface textarea {
+  margin: 0; padding: 14px; border: 0; font: 13px/1.65 var(--mono); tab-size: 2; white-space: pre;
+}
+.editor-surface pre { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.editor-surface textarea { position: relative; color: transparent; caret-color: #eef6ff; }
+.editor-surface textarea::selection { color: #fff; background: #356796; }
+.sql-comment { color: #a0b4c9; }
+.sql-string { color: #e7ca9e; }
+.sql-keyword { color: #95c8ff; }
+.sql-number { color: #a8e0c6; }
+.output-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.run-time { font-variant-numeric: tabular-nums; }
+.result-scroll { overflow: auto; max-height: 350px; margin-top: 10px; border: 1px solid var(--border); border-radius: 7px; }
+.result-table { width: 100%; border-collapse: separate; border-spacing: 0; white-space: nowrap; font: 12px var(--mono); }
+.result-table th, .result-table td { padding: 9px 10px; text-align: left; border-bottom: 1px solid #e8eef5; }
+.result-table th { position: sticky; top: 0; background: #edf3fa; color: #2b526f; }
+.result-table tbody tr:last-child td { border-bottom: 0; }
+.result-table tbody tr:nth-child(even) { background: #f7f9fc; }
+.null-cell { color: #687e94; }

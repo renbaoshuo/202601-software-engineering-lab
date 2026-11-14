@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import type { Dataset } from './api';
+import { runSql, type Dataset } from './api';
+import { QueryResult, type QueryOutput } from './QueryResult';
+import { SqlEditor } from './SqlEditor';
 import { SchemaPanel } from './SchemaPanel';
 import { useQueryResource } from './useQueryResource';
 
@@ -8,8 +10,25 @@ export default function App() {
   const [datasetId, setDatasetId] = useState('');
   const [sql, setSql] = useState('');
   const [goal, setGoal] = useState('');
+  const [output, setOutput] = useState<QueryOutput>();
+  const [running, setRunning] = useState(false);
+  const [failed, setFailed] = useState(false);
   const datasets = catalog.status === 'ready' ? catalog.data : [];
   const dataset = datasets.find(item => item.id === datasetId) ?? datasets[0];
+
+  async function runQuery() {
+    if (!dataset || !sql.trim() || running) return;
+    setRunning(true);
+    setFailed(false);
+    try {
+      const result = await runSql(dataset.id, sql);
+      setOutput({ dataset: dataset.name, sql, result });
+    } catch {
+      setFailed(true);
+    } finally {
+      setRunning(false);
+    }
+  }
 
   function fillExample() {
     if (!dataset) return;
@@ -37,19 +56,13 @@ export default function App() {
           <label className="field">查询目标
             <textarea className="goal-input" rows={2} value={goal} onChange={event => setGoal(event.target.value)} placeholder="你希望查询得到什么结果？" />
           </label>
-          <div className="editor">
-            <label htmlFor="sql" className="editor-heading"><span>SQL 编辑器</span><small>SQLite · 只读</small></label>
-            <textarea id="sql" spellCheck={false} rows={8} value={sql} onChange={event => setSql(event.target.value)} placeholder="SELECT …" />
-          </div>
+          <SqlEditor sql={sql} change={setSql} run={runQuery} />
           <div className="query-actions">
-            <button className="button primary" type="button" disabled>运行 SQL</button>
+            <button className="button primary" type="button" onClick={runQuery} disabled={!dataset || !sql.trim() || running}>{running ? '运行中…' : '运行 SQL'}</button>
             <button className="button secondary" type="button" disabled>请求诊断</button>
           </div>
         </section>
-        <section className="panel output" aria-label="运行结果">
-          <h2>运行结果</h2>
-          <p className="muted">运行 SQL 后在此查看实际结果。</p>
-        </section>
+        <QueryResult output={output} running={running} failed={failed} />
       </main>
       <SchemaPanel datasets={datasets} dataset={dataset} catalogStatus={catalog.status} selectDataset={setDatasetId} retryCatalog={retry} />
     </div>
