@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { runSql, type Dataset } from './api';
 import { QueryResult, type QueryOutput } from './QueryResult';
 import { SqlEditor } from './SqlEditor';
+import { ModelSettings } from './ModelSettings';
+import { readModelConfig, storeModelConfig, type ModelConfig } from './model';
 import { SchemaPanel } from './SchemaPanel';
 import { useQueryResource } from './useQueryResource';
 
@@ -13,6 +15,8 @@ export default function App() {
   const [output, setOutput] = useState<QueryOutput>();
   const [running, setRunning] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [model, setModel] = useState(readModelConfig);
+  const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
   const datasets = catalog.status === 'ready' ? catalog.data : [];
   const dataset = datasets.find(item => item.id === datasetId) ?? datasets[0];
 
@@ -30,6 +34,12 @@ export default function App() {
     }
   }
 
+  function saveModel(config: ModelConfig | null) {
+    storeModelConfig(config);
+    setModel(config);
+    setModelSettingsOpen(false);
+  }
+
   function fillExample() {
     if (!dataset) return;
     setSql(dataset.sample_sql);
@@ -45,7 +55,10 @@ export default function App() {
       </aside>
       <header className="topbar">
         <span>SQL 工作台</span>
-        <button className="button secondary" type="button" disabled>模型设置</button>
+        <button className="button secondary model-button" type="button" onClick={() => setModelSettingsOpen(true)}>
+          <span aria-hidden="true" className={model ? 'model-dot configured' : 'model-dot'} />
+          <span>{model ? model.model : '模型设置'}</span>
+        </button>
       </header>
       <main className="main">
         <div className="workspace-title">
@@ -64,6 +77,7 @@ export default function App() {
         </section>
         <QueryResult output={output} running={running} failed={failed} />
       </main>
+      {modelSettingsOpen && <ModelSettings config={model} close={() => setModelSettingsOpen(false)} save={saveModel} />}
       <SchemaPanel datasets={datasets} dataset={dataset} catalogStatus={catalog.status} selectDataset={setDatasetId} retryCatalog={retry} />
     </div>
   );

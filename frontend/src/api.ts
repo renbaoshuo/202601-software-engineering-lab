@@ -28,8 +28,8 @@ export type RunResult =
   | { status: 'ok' | 'empty'; columns: string[]; rows: Cell[][]; truncated: boolean; elapsed_ms: number }
   | { status: 'error' | 'timeout'; code: string; message: string; elapsed_ms: number };
 
-export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const deadline = AbortSignal.timeout(12_000);
+export async function requestJson<T>(path: string, init?: RequestInit, timeoutMs = 12_000): Promise<T> {
+  const deadline = AbortSignal.timeout(timeoutMs);
   const signal = init?.signal ? AbortSignal.any([init.signal, deadline]) : deadline;
   const response = await fetch(path, { ...init, signal });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);

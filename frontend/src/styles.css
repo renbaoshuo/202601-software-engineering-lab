@@ -148,3 +148,19 @@ body { color: #1b2a3b; background: #f5f7fa; }
 .status-badge.is-success { color: #1a654b; background: #e5f5ed; }
 .status-badge.is-warning { color: #75521b; background: #fff1cd; }
 .status-badge.is-error { color: #963544; background: #fbe8eb; }
+.model-button { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 55%; }
+.model-button span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.model-dot { flex: 0 0 7px; height: 7px; border-radius: 50%; background: #8b9cad; }
+.model-dot.configured { background: #27825f; }
+.model-form, .model-form fieldset { display: grid; gap: 14px; }
+.model-form fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.model-budget { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.model-actions { display: flex; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
+.model-actions .clear-model { margin-right: auto; color: #963544; }
+.model-error { color: #963544; font-size: 13px; }
+.model-result {
+  display: grid; gap: 8px; border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; font-size: 13px; color: #344b64; background: #f7f9fc;
+}
+.model-result ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 5px; }
+.model-result li { display: flex; align-items: center; justify-content: space-between; }
