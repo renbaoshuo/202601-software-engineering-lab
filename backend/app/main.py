@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+
+from .agent import AgentRequest, diagnosis_events
 
 from .contracts import Dataset, DatasetSchema, RunRequest, RunResult
 from .datasets import DATASETS, dataset_schema
@@ -49,3 +51,13 @@ def run_sql(request: RunRequest) -> RunResult:
 @app.post("/api/model/test")
 async def test_model(config: ModelConfig) -> Compatibility:
     return await check_model(config)
+
+
+@app.post("/api/agent/chat", response_class=StreamingResponse)
+async def agent_chat(request: AgentRequest) -> StreamingResponse:
+    if request.workspace.dataset_id not in DATASETS:
+        raise HTTPException(status_code=404, detail="未知数据集")
+    return StreamingResponse(
+        diagnosis_events(request), media_type="text/event-stream",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
