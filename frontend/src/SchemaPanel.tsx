@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Dataset, DatasetSchema } from './api';
 import { useQueryResource } from './useQueryResource';
 
@@ -7,11 +8,20 @@ interface Props {
   catalogStatus: 'loading' | 'ready' | 'error';
   selectDataset: (id: string) => void;
   retryCatalog: () => void;
+  detail?: ReactNode;
+  closeDetail: () => void;
 }
 
-export function SchemaPanel({ datasets, dataset, catalogStatus, selectDataset, retryCatalog }: Props) {
+export function SchemaPanel({ datasets, dataset, catalogStatus, selectDataset, retryCatalog, detail, closeDetail }: Props) {
   const { resource, retry } = useQueryResource<DatasetSchema>(
     dataset ? `/api/datasets/${encodeURIComponent(dataset.id)}/schema` : undefined,
+  );
+
+  if (detail) return (
+    <aside className="inspector" aria-label="数据与详情">
+      <button className="button secondary detail-back" type="button" onClick={closeDetail}>← 数据集与结构</button>
+      {detail}
+    </aside>
   );
 
   return (
