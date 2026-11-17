@@ -3,8 +3,8 @@ import { runSql, type Dataset } from './api';
 import { QueryResult, type QueryOutput } from './QueryResult';
 import { SqlEditor } from './SqlEditor';
 import { ModelSettings } from './ModelSettings';
-import { DiagnosisPanel, ToolDetails } from './DiagnosisPanel';
-import { applyDiagnosisEvent, failDiagnosis, streamDiagnosis, type DiagnosisRun } from './diagnosis';
+import { DiagnosisPanel, KnowledgeDetails, ToolDetails } from './DiagnosisPanel';
+import { applyDiagnosisEvent, failDiagnosis, streamDiagnosis, type DiagnosisRun, type KnowledgeEntry } from './diagnosis';
 import { readModelConfig, storeModelConfig, type ModelConfig } from './model';
 import { SchemaPanel } from './SchemaPanel';
 import { useQueryResource } from './useQueryResource';
@@ -21,14 +21,18 @@ export default function App() {
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
   const [turns, setTurns] = useState<DiagnosisRun[]>([]);
   const [goalError, setGoalError] = useState(false);
-  const [detail, setDetail] = useState<{ turnId: string; toolId: string }>();
+  const [detail, setDetail] = useState<{ turnId: string; toolId: string } | { entry: KnowledgeEntry }>();
   const diagnosisRequest = useRef<AbortController | null>(null);
   const goalInput = useRef<HTMLTextAreaElement>(null);
   const datasets = catalog.status === 'ready' ? catalog.data : [];
   const dataset = datasets.find(item => item.id === datasetId) ?? datasets[0];
 
   const diagnosing = turns.some(turn => turn.status === 'running');
-  const tool = turns.find(turn => turn.id === detail?.turnId)?.tools.find(item => item.id === detail?.toolId);
+  const tool = detail && 'toolId' in detail
+    ? turns.find(turn => turn.id === detail.turnId)?.tools.find(item => item.id === detail.toolId)
+    : undefined;
+  const entry = detail && 'entry' in detail ? detail.entry : undefined;
+  const openKnowledge = (item: KnowledgeEntry) => setDetail({ entry: item });
 
   async function diagnose() {
     if (!dataset || diagnosisRequest.current) return;
@@ -120,11 +124,12 @@ export default function App() {
           </div>
         </section>
         <QueryResult output={output} running={running} failed={failed} />
-        <DiagnosisPanel turns={turns} openTool={(turnId, toolId) => setDetail({ turnId, toolId })} />
+        <DiagnosisPanel turns={turns} openTool={(turnId, toolId) => setDetail({ turnId, toolId })}
+          openKnowledge={openKnowledge} applySql={setSql} />
       </main>
       {modelSettingsOpen && <ModelSettings config={model} close={() => setModelSettingsOpen(false)} save={saveModel} />}
       <SchemaPanel datasets={datasets} dataset={dataset} catalogStatus={catalog.status} selectDataset={setDatasetId} retryCatalog={retry}
-        detail={tool && <ToolDetails tool={tool} />} closeDetail={() => setDetail(undefined)} />
+        detail={entry ? <KnowledgeDetails entry={entry} /> : tool && <ToolDetails tool={tool} openKnowledge={openKnowledge} />} closeDetail={() => setDetail(undefined)} />
     </div>
   );
 }

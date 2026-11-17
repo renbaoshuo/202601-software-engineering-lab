@@ -187,3 +187,19 @@ body { color: #1b2a3b; background: #f5f7fa; }
 }
 .diagnosis-error { color: #963544; font-size: 13px; overflow-wrap: anywhere; }
 .detail-back { margin-bottom: 15px; }
+.diagnosis-card h4, .knowledge-detail h3 { margin: 12px 0 4px; font-size: 12px; color: #234e73; }
+.diagnosis-card ul { margin: 4px 0 0; padding-left: 19px; }
+.citation-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.citation {
+  border: 1px solid #bed6ed; border-radius: 5px; background: #fff; color: #195789;
+  padding: 2px 7px; text-align: left; font-size: 12px;
+}
+.citation:hover, .text-button:hover { background: var(--accent-tint); }
+.apply-sql { margin-top: 7px; min-height: 30px; padding-block: 3px; }
+.tool-details { min-width: 0; font-size: 13px; }
+.tool-details p { overflow-wrap: anywhere; }
+.tool-details a { color: #1963a9; display: inline-block; margin-top: 10px; }
+.raw-tool { margin-top: 12px; }
+.raw-tool summary { cursor: pointer; color: #344b64; }
+.reference-list { list-style: none; padding: 0; display: grid; gap: 4px; }
+.text-button { padding: 4px; border: 0; border-radius: 4px; background: transparent; color: #15588a; text-align: left; }

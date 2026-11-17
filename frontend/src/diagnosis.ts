@@ -1,10 +1,23 @@
 import type { ModelConfig } from './model';
 
 export type Verification = 'passed' | 'still_has_issue' | 'uncertain';
+export interface KnowledgeEntry {
+  id: string;
+  title: string;
+  rule: string;
+  applicable: string;
+  sqlite_version: string;
+  dataset_id: string;
+  wrong_sql: string;
+  example_sql: string;
+  source: string;
+}
+
 export interface Diagnosis {
   summary: string;
   causes: string[];
   evidence_ids: string[];
+  knowledge_refs: KnowledgeEntry[];
   suggestion: string | null;
   suggested_sql: string | null;
   limitations: string[];

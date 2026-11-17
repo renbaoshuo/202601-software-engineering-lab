@@ -1,4 +1,4 @@
-import type { RunResult } from './api';
+import type { Cell, RunResult } from './api';
 
 export interface QueryOutput {
   dataset: string;
@@ -49,18 +49,25 @@ export function QueryResult({ output, running, failed }: { output?: QueryOutput;
             </span>
             <span className="muted">{success.rows.length} 行{success.truncated ? ' · 结果已截断' : ''}</span>
           </div>
-          <div className="result-scroll" tabIndex={0} aria-label="查询结果表">
-            <table className="result-table">
-              <thead><tr>{success.columns.map((column, index) => <th scope="col" key={index}>{column}</th>)}</tr></thead>
-              <tbody>{success.rows.map((row, rowIndex) => (
-                <tr key={rowIndex}>{row.map((value, columnIndex) => (
-                  <td key={columnIndex}>{value === null ? <em className="null-cell">NULL</em> : value === 'NULL' ? '"NULL"' : value}</td>
-                ))}</tr>
-              ))}</tbody>
-            </table>
-          </div>
+          <ResultTable columns={success.columns} rows={success.rows} />
         </>
       )}
     </section>
+  );
+}
+
+
+export function ResultTable({ columns, rows }: { columns: string[]; rows: Cell[][] }) {
+  return (
+    <div className="result-scroll" tabIndex={0} aria-label="查询结果表">
+      <table className="result-table">
+        <thead><tr>{columns.map((column, index) => <th scope="col" key={index}>{column}</th>)}</tr></thead>
+        <tbody>{rows.map((row, rowIndex) => (
+          <tr key={rowIndex}>{row.map((value, columnIndex) => (
+            <td key={columnIndex}>{value === null ? <em className="null-cell">NULL</em> : value === 'NULL' ? '"NULL"' : value}</td>
+          ))}</tr>
+        ))}</tbody>
+      </table>
+    </div>
   );
 }
