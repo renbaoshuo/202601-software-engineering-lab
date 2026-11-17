@@ -203,3 +203,25 @@ body { color: #1b2a3b; background: #f5f7fa; }
 .raw-tool summary { cursor: pointer; color: #344b64; }
 .reference-list { list-style: none; padding: 0; display: grid; gap: 4px; }
 .text-button { padding: 4px; border: 0; border-radius: 4px; background: transparent; color: #15588a; text-align: left; }
+.loading-workspace { padding: 24px; color: var(--muted); }
+.session-heading { display: flex; justify-content: space-between; align-items: center; }
+.session-add { border: 1px solid #cbd7e3; border-radius: 6px; background: #fff; color: #244e75; width: 29px; height: 28px; font-size: 19px; line-height: 1; }
+.session-add:hover { background: var(--accent-tint); }
+.session-list { display: grid; gap: 3px; }
+.session-item { font-size: 13px; }
+.session-item span, .session-item small { display: block; }
+.session-item small { margin-top: 3px; color: var(--muted); font-size: 11px; }
+.topbar-label { display: flex; gap: 10px; min-width: 0; align-items: center; }
+.topbar-label > span:first-child { white-space: nowrap; }
+.locked-model { color: var(--muted); font-size: 11px; font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.workspace-title > div { min-width: 0; }
+.workspace-title p { margin-top: 3px; }
+.run-history { margin-top: 12px; font-size: 13px; }
+.run-history summary { cursor: pointer; font-weight: 650; overflow-wrap: anywhere; }
+.run-history summary span:last-child { margin-left: 7px; }
+.previous-runs { display: grid; gap: 8px; margin-top: 10px; }
+.previous-runs > details { padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; min-width: 0; }
+.previous-runs pre, .input-snapshot pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 5px 0; font: 12px/1.5 var(--mono); }
+.diagnosis-input { display: grid; justify-items: end; gap: 4px; min-width: 0; }
+.input-snapshot { min-width: 0; max-width: 100%; color: var(--muted); font-size: 12px; }
+.input-snapshot summary { cursor: pointer; }

@@ -2,6 +2,11 @@ import type { Cell } from './api';
 import type { DiagnosisRun, KnowledgeEntry, ToolCall } from './diagnosis';
 import { ResultTable } from './QueryResult';
 
+const verificationLabels = {
+  passed: { label: '验证通过', style: 'is-success' },
+  still_has_issue: { label: '仍有问题', style: 'is-error' },
+  uncertain: { label: '待进一步验证', style: 'is-warning' },
+};
 const names: Record<string, string> = {
   inspect_schema: '查看表结构',
   analyze_sql: '静态分析',
@@ -79,7 +84,12 @@ export function DiagnosisPanel({ turns, openTool, openKnowledge, applySql }: Pro
         const evidence = result?.evidence_ids.flatMap(id => turn.tools.filter(tool => tool.id === id)) ?? [];
         return (
           <article className="diagnosis-turn" key={turn.id}>
-            <p className="diagnosis-goal">{turn.snapshot.goal}</p>
+            <div className="diagnosis-input">
+              <p className="diagnosis-goal">{turn.snapshot.goal}</p>
+              <details className="input-snapshot"><summary>{turn.mode === 'verify' ? '复验输入' : '诊断输入'} · {turn.snapshot.dataset_id}</summary>
+                {turn.snapshot.sql && <pre>{turn.snapshot.sql}</pre>}
+              </details>
+            </div>
             {turn.tools.length > 0 && (
               <ul className="tool-list">
                 {turn.tools.map(tool => (
@@ -99,7 +109,12 @@ export function DiagnosisPanel({ turns, openTool, openKnowledge, applySql }: Pro
             {turn.error && <p className="diagnosis-error" role="alert">{turn.error}</p>}
             {result && (
               <div className="diagnosis-card">
-                <h3>诊断结论</h3>
+                <div className="output-heading">
+                  <h3>{turn.mode === 'verify' ? '复验结论' : '诊断结论'}</h3>
+                  {turn.mode === 'verify' && turn.status === 'complete' && (
+                    <span className={`status-badge ${verificationLabels[result.verification].style}`}>{verificationLabels[result.verification].label}</span>
+                  )}
+                </div>
                 <p>{result.summary}</p>
                 {result.causes.length > 0 && <>
                   <h4>问题与原因</h4>
