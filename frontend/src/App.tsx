@@ -1,15 +1,16 @@
-import { useRef, useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { runSql, type Cell, type Dataset, type RunResult } from './api';
 import { DiagnosisPanel, KnowledgeDetails, ToolDetails } from './DiagnosisPanel';
 import { applyDiagnosisEvent, failDiagnosis, streamDiagnosis, type ChatMessage, type DiagnosisMode, type DiagnosisRun, type KnowledgeEntry } from './diagnosis';
-import { ModelSettings } from './ModelSettings';
 import { readModelConfig, storeModelConfig, type ModelConfig } from './model';
 import { QueryResult } from './QueryResult';
 import { RunHistory } from './RunHistory';
 import { SchemaPanel } from './SchemaPanel';
 import { SqlEditor } from './SqlEditor';
 import { useQueryResource } from './useQueryResource';
-import { useWorkspace } from './workspace';
+import { useWorkspace, type StoredRun } from './workspace';
+
+const ModelSettings = lazy(() => import('./ModelSettings').then(module => ({ default: module.ModelSettings })));
 
 function executionPreview(details: Record<string, unknown>): RunResult | undefined {
   const { status, elapsed_ms, columns, preview, message, code } = details;
@@ -102,16 +103,17 @@ export default function App() {
     workspace.addTurn(sessionId, turn, identity);
     try {
       await streamDiagnosis(model, snapshot, mode, messages, controller.signal, event => {
-        workspace.updateTurn(sessionId, turn.id, current => applyDiagnosisEvent(current, event));
+        let execution: StoredRun | undefined;
         if (event.type === 'tool_started' && event.sql) toolSql.set(event.call_id, event.sql);
         if (event.type === 'tool_result' && event.name === 'execute_sql') {
           const statement = toolSql.get(event.call_id);
           const result = executionPreview(event.details);
-          if (statement && result) workspace.addRun({
+          if (statement && result) execution = {
             id: `${turn.id}:${event.call_id}`, sessionId, createdAt: Date.now(), source: 'agent', turnId: turn.id,
-            sql: statement, dataset: dataset.name, result,
-          });
+            sql: statement, dataset: dataset.name, datasetId: dataset.id, result,
+          };
         }
+        workspace.updateTurn(sessionId, turn.id, current => applyDiagnosisEvent(current, event), execution);
       });
     } catch (error) {
       const message = error instanceof TypeError ? '诊断连接失败，可重新请求。'
@@ -126,7 +128,10 @@ export default function App() {
     if (!dataset || !sql.trim() || runningRequests.current.has(sessionId)) return;
     runningRequests.current.add(sessionId);
     setRunningRuns(previous => ({ ...previous, [sessionId]: 'running' }));
-    const record = { id: crypto.randomUUID(), sessionId, createdAt: Date.now(), sql, dataset: dataset.name, source: 'manual' as const };
+    const record = {
+      id: crypto.randomUUID(), sessionId, createdAt: Date.now(), sql,
+      dataset: dataset.name, datasetId: dataset.id, source: 'manual' as const,
+    };
     try {
       const result = await runSql(dataset.id, sql);
       workspace.addRun({ ...record, result });
@@ -213,12 +218,16 @@ export default function App() {
         <QueryResult output={output} running={running} failed={runningRuns[sessionId] === 'failed'} />
         <RunHistory runs={runs} />
         <DiagnosisPanel turns={turns} openTool={(turnId, toolId) => setDetail({ sessionId, turnId, toolId })}
-          openKnowledge={openKnowledge} applySql={value => {
-            workspace.edit(sessionId, { sql: value });
+          openKnowledge={openKnowledge} applySql={(value, datasetId) => {
+            workspace.edit(sessionId, { sql: value, datasetId });
             document.getElementById('sql')?.focus();
           }} />
       </main>
-      {modelSettingsOpen && <ModelSettings config={model} close={() => setModelSettingsOpen(false)} save={saveModel} />}
+      {modelSettingsOpen && (
+        <Suspense fallback={null}>
+          <ModelSettings config={model} close={() => setModelSettingsOpen(false)} save={saveModel} />
+        </Suspense>
+      )}
       <SchemaPanel datasets={datasets} dataset={dataset} catalogStatus={catalog.status}
         selectDataset={id => workspace.edit(sessionId, { datasetId: id })} retryCatalog={retry}
         detail={entry ? <KnowledgeDetails entry={entry} /> : tool && <ToolDetails tool={tool} openKnowledge={openKnowledge} />}

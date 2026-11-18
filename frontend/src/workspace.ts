@@ -22,6 +22,7 @@ export interface StoredRun extends QueryOutput {
   sessionId: string;
   createdAt: number;
   source: 'manual' | 'agent';
+  datasetId?: string;
   turnId?: string;
 }
 
@@ -179,7 +180,7 @@ export function useWorkspace() {
     }));
   }
 
-  function updateTurn(sessionId: string, turnId: string, change: (turn: DiagnosisRun) => DiagnosisRun) {
+  function updateTurn(sessionId: string, turnId: string, change: (turn: DiagnosisRun) => DiagnosisRun, run?: StoredRun) {
     let record: StoredTurn | undefined;
     const next = update(sessionId, session => {
       const turn = session.turns.find(item => item.id === turnId);
@@ -187,13 +188,19 @@ export function useWorkspace() {
       const changed = change(turn);
       if (changed === turn) return session;
       record = { ...turn, ...changed };
-      return { ...session, turns: session.turns.map(item => item === turn ? record! : item) };
+      return {
+        ...session, turns: session.turns.map(item => item === turn ? record! : item),
+        runs: run ? [...session.runs, run] : session.runs,
+      };
     });
     if (!next || !record) return;
     const saved = record;
-    enqueue(sessionId, turnId, () => db.transaction('rw', [db.sessions, db.messages], async () => {
+    const executions = next.runs.filter(item => item.turnId === turnId);
+    const tables = executions.length ? [db.sessions, db.messages, db.sqlRuns] : [db.sessions, db.messages];
+    enqueue(sessionId, turnId, () => db.transaction('rw', tables, async () => {
       await db.sessions.put(next.draft);
       await db.messages.put(saved);
+      if (executions.length) await db.sqlRuns.bulkPut(executions);
     }));
   }
 

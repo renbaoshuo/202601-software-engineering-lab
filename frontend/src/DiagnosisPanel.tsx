@@ -69,7 +69,7 @@ interface Props {
   turns: DiagnosisRun[];
   openTool: (turnId: string, toolId: string) => void;
   openKnowledge: (entry: KnowledgeEntry) => void;
-  applySql: (sql: string) => void;
+  applySql: (sql: string, datasetId: string) => void;
 }
 
 export function DiagnosisPanel({ turns, openTool, openKnowledge, applySql }: Props) {
@@ -80,6 +80,8 @@ export function DiagnosisPanel({ turns, openTool, openKnowledge, applySql }: Pro
       <h2>诊断对话</h2>
       {turns.map(turn => {
         const result = turn.result;
+        const candidate = result?.suggested_sql;
+        const verification = verificationLabels[result?.verification ?? 'uncertain'] ?? verificationLabels.uncertain;
         const citations = result?.knowledge_refs ?? [];
         const evidence = result?.evidence_ids.flatMap(id => turn.tools.filter(tool => tool.id === id)) ?? [];
         return (
@@ -112,7 +114,7 @@ export function DiagnosisPanel({ turns, openTool, openKnowledge, applySql }: Pro
                 <div className="output-heading">
                   <h3>{turn.mode === 'verify' ? '复验结论' : '诊断结论'}</h3>
                   {turn.mode === 'verify' && turn.status === 'complete' && (
-                    <span className={`status-badge ${verificationLabels[result.verification].style}`}>{verificationLabels[result.verification].label}</span>
+                    <span className={`status-badge ${verification.style}`}>{verification.label}</span>
                   )}
                 </div>
                 <p>{result.summary}</p>
@@ -128,9 +130,10 @@ export function DiagnosisPanel({ turns, openTool, openKnowledge, applySql }: Pro
                 </>}
                 {(result.suggestion || result.suggested_sql) && <h4>修改建议</h4>}
                 {result.suggestion && <p>{result.suggestion}</p>}
-                {result.suggested_sql && <>
-                  <pre>{result.suggested_sql}</pre>
-                  <button className="button secondary apply-sql" type="button" onClick={() => applySql(result.suggested_sql!)}>填入候选 SQL</button>
+                {candidate && <>
+                  <pre>{candidate}</pre>
+                  <button className="button secondary apply-sql" type="button" title={`使用 ${turn.snapshot.dataset_id} 数据集`}
+                    onClick={() => applySql(candidate, turn.snapshot.dataset_id)}>填入候选 SQL</button>
                 </>}
                 {citations.length > 0 && <>
                   <h4>知识引用</h4>
