@@ -170,9 +170,11 @@ def call_parts(call, number: int) -> tuple[dict, str, dict | None]:
     return normalized, f"t{number}", args
 
 
-def workspace_context(request: AgentRequest) -> list[dict]:
+def workspace_context(request: AgentRequest, prompt: str, fixed_evidence: list[dict] | None) -> list[dict]:
     workspace = request.workspace.model_dump()
     workspace["mode"] = request.mode
+    if fixed_evidence is not None:
+        workspace["fixed_evidence"] = fixed_evidence
     final = {"role": "user", "content": json.dumps(workspace, ensure_ascii=False)}
     remaining = max(0, (request.model.context_length - request.model.max_output_tokens) * 2 - len(final["content"]) - 3000)
     prior = []
@@ -181,10 +183,13 @@ def workspace_context(request: AgentRequest) -> list[dict]:
             break
         prior.append(message.model_dump())
         remaining -= len(message.content)
-    return [{"role": "system", "content": DOMAIN_PROMPT}, *reversed(prior), final]
+    return [{"role": "system", "content": prompt}, *reversed(prior), final]
 
 
-async def diagnosis_events(request: AgentRequest) -> AsyncIterator[str]:
+async def diagnosis_events(
+    request: AgentRequest, *, tools: list[dict] = TOOLS, prompt: str = DOMAIN_PROMPT,
+    fixed_evidence: list[dict] | None = None,
+) -> AsyncIterator[str]:
     request_id = uuid.uuid4().hex
     sequence = 0
 
@@ -200,14 +205,15 @@ async def diagnosis_events(request: AgentRequest) -> AsyncIterator[str]:
         return
 
     credential = request.model.api_key.get_secret_value()
-    messages = workspace_context(request)
-    evidence = {}
+    messages = workspace_context(request, prompt, fixed_evidence)
+    allowed_tools = TOOL_NAMES if tools is TOOLS else {tool["function"]["name"] for tool in tools}
+    evidence = {item["call_id"]: item for item in (fixed_evidence or [])}
     knowledge = {}
     current_run = None
     try:
         async with MODEL_SLOTS, model_client() as client, asyncio.timeout(AGENT_SECONDS):
             for _ in range(TURN_LIMIT):
-                answer = await complete(client, request.model, messages, tools=TOOLS)
+                answer = await complete(client, request.model, messages, tools=tools)
                 calls = answer.get("tool_calls") or []
                 if not calls:
                     diagnosis = load_diagnosis(answer.get("content"))
@@ -226,18 +232,20 @@ async def diagnosis_events(request: AgentRequest) -> AsyncIterator[str]:
                     yield send("done")
                     return
 
+                if not tools:
+                    raise ModelFailure("tool_unavailable", "该评测组的工具调用未启用。")
                 if len(calls) + len(evidence) > TOOL_LIMIT:
                     raise ModelFailure("tool_limit", "诊断达到工具调用上限，可缩小问题后重试。")
                 parts = [call_parts(call, len(evidence) + n) for n, call in enumerate(calls, 1)]
                 messages.append({"role": "assistant", "content": None, "tool_calls": [part[0] for part in parts]})
                 for normalized, call_id, args in parts:
                     name = normalized["function"]["name"]
-                    public_name = name if name in TOOL_NAMES else "unknown_tool"
+                    public_name = name if name in allowed_tools else "unknown_tool"
                     source = args.get("sql") if isinstance(args, dict) and isinstance(args.get("sql"), str) else None
                     yield send("tool_started", call_id=call_id, name=public_name, sql=redact(source, credential))
                     started = time.monotonic()
                     try:
-                        ok, outcome = await asyncio.to_thread(tool_result, name, args, request.workspace)
+                        ok, outcome = await asyncio.to_thread(tool_result, public_name, args, request.workspace)
                     except Exception:
                         ok, outcome = False, {"message": "工具执行失败，可结合其他证据继续诊断。"}
                     if name == "execute_sql" and source and source.strip() == request.workspace.sql and "status" in outcome:
