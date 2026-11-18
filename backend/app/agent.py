@@ -118,8 +118,9 @@ def tool_result(name: str, arguments: dict, workspace: Workspace) -> tuple[bool,
                 preview = [[cell[:240] if isinstance(cell, str) else cell for cell in row[:40]] for row in rows[:8]]
                 output["row_count"] = len(rows)
                 output["preview"] = preview
-                output["preview_truncated"] = preview != rows
-                output["columns"] = [name[:120] for name in output["columns"][:40]]
+                columns = output["columns"]
+                output["columns"] = [name[:120] for name in columns[:40]]
+                output["preview_truncated"] = preview != rows or output["columns"] != columns
             return output["status"] in {"ok", "empty"}, output
     if name == "search_sql_knowledge" and set(arguments) == {"query"}:
         query = arguments["query"]
@@ -170,20 +171,29 @@ def call_parts(call, number: int) -> tuple[dict, str, dict | None]:
     return normalized, f"t{number}", args
 
 
-def workspace_context(request: AgentRequest, prompt: str, fixed_evidence: list[dict] | None) -> list[dict]:
+def prompt_tokens(value) -> int:
+    raw = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()
+    return (len(raw) + 2) // 3
+
+
+def workspace_context(request: AgentRequest, prompt: str, tools: list[dict], fixed_evidence: list[dict] | None) -> list[dict]:
     workspace = request.workspace.model_dump()
     workspace["mode"] = request.mode
     if fixed_evidence is not None:
         workspace["fixed_evidence"] = fixed_evidence
     final = {"role": "user", "content": json.dumps(workspace, ensure_ascii=False)}
-    remaining = max(0, (request.model.context_length - request.model.max_output_tokens) * 2 - len(final["content"]) - 3000)
+    system = {"role": "system", "content": prompt}
+    available = request.model.context_length - request.model.max_output_tokens - 128
+    remaining = available - prompt_tokens([system, final, tools])
     prior = []
     for message in reversed(request.messages):
-        if len(message.content) > remaining:
+        item = message.model_dump()
+        cost = prompt_tokens(item) + 1
+        if cost > remaining:
             break
-        prior.append(message.model_dump())
-        remaining -= len(message.content)
-    return [{"role": "system", "content": prompt}, *reversed(prior), final]
+        prior.append(item)
+        remaining -= cost
+    return [system, *reversed(prior), final]
 
 
 async def diagnosis_events(
@@ -205,7 +215,8 @@ async def diagnosis_events(
         return
 
     credential = request.model.api_key.get_secret_value()
-    messages = workspace_context(request, prompt, fixed_evidence)
+    messages = workspace_context(request, prompt, tools, fixed_evidence)
+    input_budget = request.model.context_length - request.model.max_output_tokens - 128
     allowed_tools = TOOL_NAMES if tools is TOOLS else {tool["function"]["name"] for tool in tools}
     evidence = {item["call_id"]: item for item in (fixed_evidence or [])}
     knowledge = {}
@@ -213,6 +224,8 @@ async def diagnosis_events(
     try:
         async with MODEL_SLOTS, model_client() as client, asyncio.timeout(AGENT_SECONDS):
             for _ in range(TURN_LIMIT):
+                if prompt_tokens([messages, tools]) > input_budget:
+                    raise ModelFailure("context_budget", "当前上下文长度不足，请提高模型上下文长度或缩短 SQL 和目标。")
                 answer = await complete(client, request.model, messages, tools=tools)
                 calls = answer.get("tool_calls") or []
                 if not calls:
@@ -221,14 +234,19 @@ async def diagnosis_events(
                     if request.mode == "verify":
                         if current_run and current_run.get("code") in {"sql_error", "read_only"}:
                             diagnosis.verification = "still_has_issue"
-                        elif not current_run or current_run["status"] not in {"ok", "empty"} or current_run.get("truncated"):
+                        elif (
+                            not current_run or current_run["status"] not in {"ok", "empty"}
+                            or current_run.get("truncated") or current_run.get("preview_truncated")
+                        ):
                             diagnosis.verification = "uncertain"
                             diagnosis.limitations = [*diagnosis.limitations[:5], "当前 SQL 的完整执行结果不足以验证查询目标。"]
                     result = diagnosis.model_dump(exclude={"knowledge_ids"})
                     result["knowledge_refs"] = [
                         knowledge[ref] for ref in dict.fromkeys(diagnosis.knowledge_ids) if ref in knowledge
                     ]
-                    yield send("diagnosis", result=redact(result, credential))
+                    result = redact(result, credential)
+                    result["verification"] = diagnosis.verification
+                    yield send("diagnosis", result=result)
                     yield send("done")
                     return
 
@@ -253,7 +271,11 @@ async def diagnosis_events(
                     if name == "search_sql_knowledge" and ok:
                         knowledge.update((entry["id"], entry) for entry in outcome["matches"])
                     # Store the same evidence that is shown in the workspace.
-                    outcome = redact(outcome, credential)
+                    public_outcome = redact(outcome, credential)
+                    for fixed_field in ("status", "code"):
+                        if fixed_field in outcome:
+                            public_outcome[fixed_field] = outcome[fixed_field]
+                    outcome = public_outcome
                     evidence[call_id] = outcome
                     yield send("tool_result", call_id=call_id, name=public_name,
                                status="ok" if ok else "error", elapsed_ms=round((time.monotonic() - started) * 1000, 2),
