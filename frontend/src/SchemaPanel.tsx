@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { Dataset, DatasetSchema } from './api';
 import { useQueryResource } from './useQueryResource';
 
@@ -17,8 +17,16 @@ export function SchemaPanel({ datasets, dataset, catalogStatus, selectDataset, r
     dataset ? `/api/datasets/${encodeURIComponent(dataset.id)}/schema` : undefined,
   );
 
+  const detailPanel = useRef<HTMLElement>(null);
+  const detailOpen = Boolean(detail);
+  useEffect(() => {
+    if (!detailOpen || !window.matchMedia('(max-width: 840px)').matches) return;
+    detailPanel.current?.scrollIntoView({ block: 'start' });
+    detailPanel.current?.focus({ preventScroll: true });
+  }, [detailOpen]);
+
   if (detail) return (
-    <aside className="inspector" aria-label="数据与详情">
+    <aside ref={detailPanel} tabIndex={-1} className="inspector" aria-label="数据与详情">
       <button className="button secondary detail-back" type="button" onClick={closeDetail}>← 数据集与结构</button>
       {detail}
     </aside>
