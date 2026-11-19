@@ -6,8 +6,21 @@ services:
       - "127.0.0.1:${QUERY_PILOT_BACKEND_PORT:-8000}:8000"
     environment:
       GO_JUDGE_URL: http://go-judge:5050
+      QUERY_PILOT_MODEL_ORIGINS: "${QUERY_PILOT_MODEL_ORIGINS:-https://api.openai.com,https://api.deepseek.com}"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python3", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/health', timeout=3).close()"]
+      interval: 5s
+      timeout: 4s
+      retries: 5
     depends_on:
-      - go-judge
+      go-judge:
+        condition: service_healthy
     networks:
       - default
       - sandbox
@@ -19,6 +32,11 @@ services:
     privileged: true
     shm_size: 256m
     command: ["-http-addr", ":5050", "-no-fallback", "-parallelism", "4"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:5050/version', timeout=3).close()"]
+      interval: 5s
+      timeout: 4s
+      retries: 5
     networks:
       - sandbox
 
