@@ -40,6 +40,29 @@ services:
     networks:
       - sandbox
 
+  web:
+    build: ./frontend
+    ports:
+      - "${QUERY_PILOT_BIND_ADDRESS:-127.0.0.1}:${QUERY_PILOT_WEB_PORT:-8080}:80"
+      - "${QUERY_PILOT_BIND_ADDRESS:-127.0.0.1}:${QUERY_PILOT_HTTPS_PORT:-8443}:443"
+    environment:
+      QUERY_PILOT_SITE_ADDRESS: "${QUERY_PILOT_SITE_ADDRESS:-:80}"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 5s
+      timeout: 4s
+      retries: 5
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:
+
 networks:
   sandbox:
     internal: true
