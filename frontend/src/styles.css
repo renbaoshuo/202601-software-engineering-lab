@@ -166,7 +166,7 @@ body { color: #1b2a3b; background: #f5f7fa; }
 .model-result li { display: flex; align-items: center; justify-content: space-between; }
 .goal-input[aria-invalid="true"] { border-color: #b5505d; }
 .diagnosis-panel { margin-top: 14px; }
-.diagnosis-turn { display: grid; gap: 11px; padding-top: 13px; }
+.diagnosis-turn { display: grid; grid-template-columns: minmax(0, 1fr); gap: 11px; padding-top: 13px; }
 .diagnosis-turn + .diagnosis-turn { border-top: 1px solid var(--border); margin-top: 15px; }
 .diagnosis-goal { justify-self: end; max-width: 88%; white-space: pre-wrap; overflow-wrap: anywhere; padding: 7px 11px; border-radius: 8px; background: var(--accent-tint); color: #244e75; font-size: 13px; }
 .tool-list { padding: 0; margin: 0; display: grid; gap: 5px; list-style: none; }
@@ -183,6 +183,7 @@ body { color: #1b2a3b; background: #f5f7fa; }
 .diagnosis-card p { margin-top: 7px; white-space: pre-wrap; }
 .diagnosis-card pre, .tool-details pre {
   max-width: 100%; overflow: auto; max-height: 390px; margin: 8px 0 0; border-radius: 6px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
   background: #14263a; color: #e5f0fc; padding: 9px 10px; font: 12px/1.55 var(--mono);
 }
 .diagnosis-error { color: #963544; font-size: 13px; overflow-wrap: anywhere; }
