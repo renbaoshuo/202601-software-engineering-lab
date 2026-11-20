@@ -1,6 +1,7 @@
 import { requestJson } from './api';
 
 const MODEL_KEY = 'querypilot.model.v1';
+export const MAX_OUTPUT_TOKENS = 393_216;
 
 export interface ModelConfig {
   base_url: string;
@@ -42,5 +43,15 @@ export function testModel(config: ModelConfig, signal: AbortSignal) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config),
     signal,
-  }, 35_000);
+  }, 50_000);
+}
+
+export function diagnosisTimeoutMs(config: ModelConfig): number {
+  if (config.max_output_tokens > 16_384) return 610_000;
+  try {
+    if (new URL(config.base_url).hostname === 'api.deepseek.com') return 130_000;
+  } catch {
+    // The API will report an invalid endpoint.
+  }
+  return 85_000;
 }

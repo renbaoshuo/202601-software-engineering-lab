@@ -1,6 +1,6 @@
 import { Modal } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
-import { testModel, type Compatibility, type ModelConfig } from './model';
+import { MAX_OUTPUT_TOKENS, testModel, type Compatibility, type ModelConfig } from './model';
 
 const defaultConfig: ModelConfig = {
   base_url: '', api_key: '', model: '', context_length: 128_000, max_output_tokens: 2048,
@@ -105,10 +105,12 @@ export function ModelSettings({ config, close, save }: Props) {
                 onChange={event => change('context_length', event.target.valueAsNumber)} />
             </label>
             <label className="field">最大输出 Token
-              <input type="number" min={128} max={16384} step={1} required value={draft.max_output_tokens || ''}
+              <input type="number" min={128} max={MAX_OUTPUT_TOKENS} step={1} required value={draft.max_output_tokens || ''}
+                aria-describedby="output-budget-hint"
                 onChange={event => change('max_output_tokens', event.target.valueAsNumber)} />
             </label>
           </div>
+          <p id="output-budget-hint" className="muted">最多 393,216 Tokens，实际可用值取决于模型和上下文长度。</p>
         </fieldset>
         {testing && <p className="muted" role="status">正在检查模型服务和工具支持…</p>}
         {error && <p className="model-error" role="alert">{error}</p>}

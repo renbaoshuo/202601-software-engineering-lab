@@ -9,7 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints,
 
 Check = Literal["pass", "fail", "unchecked"]
 MODEL_SLOTS = asyncio.Semaphore(4)
-MAX_RESPONSE_BYTES = 256 * 1024
+MAX_OUTPUT_TOKENS = 393_216
+STANDARD_OUTPUT_TOKENS = 16_384
 DEFAULT_ORIGINS = "https://api.openai.com,https://api.deepseek.com"
 
 
@@ -20,7 +21,20 @@ class ModelConfig(BaseModel):
     api_key: SecretStr
     model: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)]
     context_length: int = Field(default=128_000, ge=1024, le=1_048_576)
-    max_output_tokens: int = Field(default=2048, ge=128, le=16_384)
+    max_output_tokens: int = Field(default=2048, ge=128, le=MAX_OUTPUT_TOKENS)
+
+    @property
+    def is_deepseek(self) -> bool:
+        try:
+            return urlsplit(self.base_url).hostname == "api.deepseek.com"
+        except ValueError:
+            return False
+
+    @property
+    def diagnosis_seconds(self) -> int:
+        if self.max_output_tokens > STANDARD_OUTPUT_TOKENS:
+            return 600
+        return 120 if self.is_deepseek else 75
 
     @field_validator("api_key")
     @classmethod
@@ -81,21 +95,38 @@ def model_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(timeout=httpx.Timeout(12, connect=4), follow_redirects=False, trust_env=False)
 
 
-async def complete(client: httpx.AsyncClient, config: ModelConfig, messages: list[dict], *, tools=None,
-                   tool_choice=None, max_tokens: int | None = None) -> dict:
+async def complete(
+    client: httpx.AsyncClient, config: ModelConfig, messages: list[dict], *, tools=None,
+    tool_choice=None, probe_tokens: int | None = None,
+) -> dict:
     url = model_endpoint(config.base_url)
-    payload = {"model": config.model, "messages": messages, "max_tokens": max_tokens or config.max_output_tokens}
+    max_tokens = probe_tokens if probe_tokens is not None else config.max_output_tokens
+    payload = {"model": config.model, "messages": messages, "max_tokens": max_tokens}
     if tools:
         payload["tools"] = tools
     if tool_choice:
         payload["tool_choice"] = tool_choice
+    if probe_tokens is not None:
+        timeout = 30 if config.is_deepseek and tools else 16
+        if config.is_deepseek:
+            payload["reasoning_effort"] = "low" if tools else "none"
+    elif max_tokens > STANDARD_OUTPUT_TOKENS:
+        timeout = config.diagnosis_seconds
+    else:
+        timeout = 60 if config.is_deepseek else 16
+    response_limit = max(256 * 1024, max_tokens * 24)
     credential = config.api_key.get_secret_value()
     try:
-        async with asyncio.timeout(16):
-            async with client.stream("POST", url, json=payload, headers={"Authorization": f"Bearer {credential}"}) as response:
+        async with asyncio.timeout(timeout):
+            async with client.stream(
+                "POST", url, json=payload, headers={"Authorization": f"Bearer {credential}"},
+                timeout=httpx.Timeout(timeout, connect=4),
+            ) as response:
                 status = response.status_code
                 if status in {401, 403}:
                     raise ModelFailure("authentication", "模型服务拒绝认证，请检查 API Key 和访问权限。", reachable=True)
+                if status == 402:
+                    raise ModelFailure("quota", "模型账户余额不足，请检查模型服务账户。", reachable=True)
                 if status == 404:
                     raise ModelFailure("model_unavailable", "模型或 Chat Completions 路径不可用。", reachable=True)
                 if status == 429:
@@ -107,7 +138,7 @@ async def complete(client: httpx.AsyncClient, config: ModelConfig, messages: lis
                 raw = bytearray()
                 async for chunk in response.aiter_bytes(chunk_size=8192):
                     raw.extend(chunk)
-                    if len(raw) > MAX_RESPONSE_BYTES:
+                    if len(raw) > response_limit:
                         raise ModelFailure("response_limit", "模型响应超过大小限制。", reachable=True)
     except (TimeoutError, httpx.TimeoutException):
         raise ModelFailure("model_timeout", "模型服务响应超时。") from None
@@ -115,16 +146,21 @@ async def complete(client: httpx.AsyncClient, config: ModelConfig, messages: lis
         raise ModelFailure("connection", "无法连接模型服务，请检查 Endpoint。") from None
 
     try:
-        message = json.loads(raw)["choices"][0]["message"]
+        choice = json.loads(raw)["choices"][0]
+        if choice.get("finish_reason") == "length":
+            raise ModelFailure("model_length", "模型达到输出 Token 上限，请提高最大输出 Token 后重试。", reachable=True)
+        message = choice["message"]
         if not isinstance(message, dict) or message.get("role") != "assistant":
             raise ValueError
         if message.get("content") is not None and not isinstance(message["content"], str):
+            raise ValueError
+        if message.get("reasoning_content") is not None and not isinstance(message["reasoning_content"], str):
             raise ValueError
         if message.get("tool_calls") is not None and not isinstance(message["tool_calls"], list):
             raise ValueError
         if not message.get("content") and not message.get("tool_calls"):
             raise ValueError
-    except (ValueError, KeyError, TypeError, IndexError):
+    except (AttributeError, ValueError, KeyError, TypeError, IndexError):
         raise ModelFailure("protocol", "模型返回的内容与 Chat Completions 协议不匹配。", reachable=True) from None
     return message
 
@@ -142,7 +178,7 @@ async def check_model(config: ModelConfig) -> Compatibility:
         return Compatibility(message="模型请求较多，请稍后重试。")
     async with MODEL_SLOTS, model_client() as client:
         try:
-            await complete(client, config, [{"role": "user", "content": "Reply with OK."}], max_tokens=128)
+            await complete(client, config, [{"role": "user", "content": "Reply with OK."}], probe_tokens=128)
         except ModelFailure as exc:
             return Compatibility(
                 connection="pass" if exc.reachable else "fail",
@@ -155,7 +191,9 @@ async def check_model(config: ModelConfig) -> Compatibility:
         try:
             answer = await complete(
                 client, config, [{"role": "user", "content": "Call querypilot_probe with no arguments."}],
-                tools=[tool], tool_choice={"type": "function", "function": {"name": "querypilot_probe"}}, max_tokens=256,
+                tools=[tool],
+                tool_choice="auto" if config.is_deepseek else {"type": "function", "function": {"name": "querypilot_probe"}},
+                probe_tokens=4096 if config.is_deepseek else 256,
             )
         except ModelFailure as exc:
             return Compatibility(connection="pass", authentication="pass", model="pass", tools="fail", message=str(exc))

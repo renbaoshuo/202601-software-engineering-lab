@@ -17,7 +17,6 @@ from .sandbox import execute_sql
 
 TURN_LIMIT = 5
 TOOL_LIMIT = 8
-AGENT_SECONDS = 75
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1800)]
 
 
@@ -181,19 +180,27 @@ def workspace_context(request: AgentRequest, prompt: str, tools: list[dict], fix
     workspace["mode"] = request.mode
     if fixed_evidence is not None:
         workspace["fixed_evidence"] = fixed_evidence
-    final = {"role": "user", "content": json.dumps(workspace, ensure_ascii=False)}
     system = {"role": "system", "content": prompt}
+    history_as_context = request.model.is_deepseek and bool(tools)
+
+    def build(history: list[dict]) -> list[dict]:
+        context = workspace
+        if history_as_context and history:
+            # Saved summaries do not contain the original DeepSeek reasoning.
+            context = {**workspace, "prior_messages": history}
+        final = {"role": "user", "content": json.dumps(context, ensure_ascii=False)}
+        return [system, *([] if history_as_context else history), final]
+
     available = request.model.context_length - request.model.max_output_tokens - 128
-    remaining = available - prompt_tokens([system, final, tools])
     prior = []
+    messages = build(prior)
     for message in reversed(request.messages):
-        item = message.model_dump()
-        cost = prompt_tokens(item) + 1
-        if cost > remaining:
+        candidate = [message.model_dump(), *prior]
+        updated = build(candidate)
+        if prompt_tokens([updated, tools]) > available:
             break
-        prior.append(item)
-        remaining -= cost
-    return [system, *reversed(prior), final]
+        prior, messages = candidate, updated
+    return messages
 
 
 async def diagnosis_events(
@@ -222,7 +229,7 @@ async def diagnosis_events(
     knowledge = {}
     current_run = None
     try:
-        async with MODEL_SLOTS, model_client() as client, asyncio.timeout(AGENT_SECONDS):
+        async with MODEL_SLOTS, model_client() as client, asyncio.timeout(request.model.diagnosis_seconds):
             for _ in range(TURN_LIMIT):
                 if prompt_tokens([messages, tools]) > input_budget:
                     raise ModelFailure("context_budget", "当前上下文长度不足，请提高模型上下文长度或缩短 SQL 和目标。")
@@ -255,7 +262,10 @@ async def diagnosis_events(
                 if len(calls) + len(evidence) > TOOL_LIMIT:
                     raise ModelFailure("tool_limit", "诊断达到工具调用上限，可缩小问题后重试。")
                 parts = [call_parts(call, len(evidence) + n) for n, call in enumerate(calls, 1)]
-                messages.append({"role": "assistant", "content": None, "tool_calls": [part[0] for part in parts]})
+                assistant = {"role": "assistant", "content": answer.get("content"), "tool_calls": [part[0] for part in parts]}
+                if answer.get("reasoning_content") is not None:
+                    assistant["reasoning_content"] = answer["reasoning_content"]
+                messages.append(assistant)
                 for normalized, call_id, args in parts:
                     name = normalized["function"]["name"]
                     public_name = name if name in allowed_tools else "unknown_tool"

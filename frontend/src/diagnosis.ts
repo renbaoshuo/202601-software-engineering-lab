@@ -1,4 +1,4 @@
-import type { ModelConfig } from './model';
+import { diagnosisTimeoutMs, type ModelConfig } from './model';
 
 export type Verification = 'passed' | 'still_has_issue' | 'uncertain';
 export interface KnowledgeEntry {
@@ -102,7 +102,7 @@ export async function streamDiagnosis(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify({ model_config: model, workspace: snapshot, mode, messages }),
-    signal: AbortSignal.any([signal, AbortSignal.timeout(85_000)]),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(diagnosisTimeoutMs(model))]),
   });
   if (!response.ok || !response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
     throw new Error('无法建立诊断连接。');
